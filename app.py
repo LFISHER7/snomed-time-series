@@ -84,3 +84,74 @@ if code_input:
         st.error(
             f"The code {code_input} was not found. Please ensure the code entered is a SNOMED-CT code."
         )
+
+st.sidebar.title("Upload a Code List")
+st.sidebar.write('Upload a CSV file with a column named "SNOMED_Concept_ID"')
+uploaded_file = st.sidebar.file_uploader("Choose a CSV file", type="csv")
+if uploaded_file is not None:
+    code_list = pd.read_csv(uploaded_file)
+
+    # Once the file is uploaded, show a select box with column names
+    column_name = st.sidebar.selectbox(
+        "Select the column containing the codes",
+        code_list.columns,
+        key="column_selector",
+    )
+
+    # rename main dataset column to match the uploaded file
+    data = data.rename(columns={"SNOMED_Concept_ID": column_name})
+
+    if st.sidebar.button("Analyse Code List"):
+        # Convert the 'SNOMED_Concept_ID' column to int, assuming it's the correct data type
+        code_list[column_name] = code_list[column_name].astype(str)
+
+        data_subset = data[data[column_name].isin(code_list[column_name])]
+        # Find which codes in the uploaded file are not in the main dataset
+        missing_codes = code_list[~code_list[column_name].isin(data[column_name])][
+            column_name
+        ].unique()
+
+        if len(missing_codes) > 0:
+            st.title("Missing Codes")
+            # Display the missing codes
+            st.error("Some codes from the uploaded list were not found.")
+            # show the missing codes in a dataframe
+            st.write(pd.DataFrame(missing_codes, columns=["Missing Codes"], dtype=str))
+
+        # If there are no missing codes, proceed with the merge and rest of the analysis
+        merged_data = pd.merge(data_subset, code_list, on=column_name)
+
+        # convert usage to float
+        # replace any '*" in usage column with np.nan
+        merged_data["Usage"] = merged_data["Usage"].replace("*", np.nan)
+
+        # convert non-null values to int
+        merged_data["Usage"] = merged_data["Usage"].astype(float)
+
+        # aggregate count by code and display in table
+        code_counts = merged_data.groupby(column_name)[["Usage"]].sum().reset_index()
+        code_counts[column_name] = code_counts[column_name].astype(str)
+        st.title("Total recorded codes")
+        st.write(code_counts)
+
+        time_series_data = (
+            merged_data.groupby("year_start")["Usage"].sum().reset_index()
+        )
+
+        st.title("Time Series for Uploaded Code List")
+        st.pyplot(plot_time_series(time_series_data))
+
+        individual_counts = (
+            merged_data.groupby(["year_start", column_name])["Usage"]
+            .sum()
+            .reset_index()
+        )
+        for code in code_list[column_name].unique():
+            # write title
+            st.title(f"Time Series for Code: {code}")
+            if code not in missing_codes:
+                code_data = individual_counts[individual_counts[column_name] == code]
+                st.pyplot(plot_time_series(code_data))
+
+            else:
+                st.error(f"The code {code} was not found.")

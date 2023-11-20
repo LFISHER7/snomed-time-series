@@ -1,12 +1,17 @@
 import streamlit as st
 import pandas as pd
 import pathlib
+import pyautogui
 import numpy as np
 import matplotlib.pyplot as plt
 import matplotlib.dates as mdates
 
 path = pathlib.Path(__file__).parent.absolute()
 DATA_PATH = path / "data/processed/combined_data.csv"
+
+
+if st.sidebar.button("Reset"):
+    pyautogui.hotkey("ctrl", "F5")
 
 
 @st.cache_data(show_spinner=False)
@@ -29,8 +34,7 @@ code_input = st.sidebar.text_input("Enter a code")
 
 
 def plot_time_series(data):
-    
-    data["year_start"] = data["year_start"] - pd.DateOffset(months=6)
+    data.loc[:, "year_start"] = data["year_start"] - pd.DateOffset(months=6)
 
     xlabels = data["year_start"].dt.strftime("%Y").unique().tolist()
     plt.figure(figsize=(10, 5))
@@ -69,10 +73,10 @@ if code_input:
         # dislpay the data, year start should be in the format YYYY-MM-DD
         formatted_data = filtered_data[["year_start", "Usage"]]
         formatted_data.columns = ["Year", "Usage"]
-        formatted_data["Year"] = formatted_data["Year"].dt.strftime("%Y-%m-%d")
+        formatted_data.loc[:, "Year"] = formatted_data["Year"].dt.strftime("%Y-%m-%d")
         formatted_data = formatted_data.set_index("Year")
         st.write(formatted_data)
-  
+
         st.write("Time Series Graph")
         st.pyplot(plot_time_series(filtered_data))
 

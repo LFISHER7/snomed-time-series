@@ -2,9 +2,14 @@ import streamlit as st
 import pandas as pd
 import pathlib
 import pyautogui
+import requests
+import io
 import numpy as np
 import matplotlib.pyplot as plt
 import matplotlib.dates as mdates
+
+from bs4 import BeautifulSoup
+
 
 path = pathlib.Path(__file__).parent.absolute()
 DATA_PATH = path / "data/processed/combined_data.csv"
@@ -87,6 +92,59 @@ if code_input:
 st.sidebar.title("Upload a Code List")
 st.sidebar.write('Upload a CSV file with a column named "SNOMED_Concept_ID"')
 uploaded_file = st.sidebar.file_uploader("Choose a CSV file", type="csv")
+
+
+def show_plots(code_list, data, column_name):
+    code_list[column_name] = code_list[column_name].astype(str)
+
+    data_subset = data[data[column_name].isin(code_list[column_name])]
+    # Find which codes in the uploaded file are not in the main dataset
+    missing_codes = code_list[~code_list[column_name].isin(data[column_name])][
+        column_name
+    ].unique()
+
+    if len(missing_codes) > 0:
+        st.title("Missing Codes")
+        # Display the missing codes
+        st.error("Some codes from the uploaded list were not found.")
+        # show the missing codes in a dataframe
+        st.write(pd.DataFrame(missing_codes, columns=["Missing Codes"], dtype=str))
+
+    # If there are no missing codes, proceed with the merge and rest of the analysis
+    merged_data = pd.merge(data_subset, code_list, on=column_name)
+
+    # convert usage to float
+    # replace any '*" in usage column with np.nan
+    merged_data["Usage"] = merged_data["Usage"].replace("*", np.nan)
+
+    # convert non-null values to int
+    merged_data["Usage"] = merged_data["Usage"].astype(float)
+
+    # aggregate count by code and display in table
+    code_counts = merged_data.groupby(column_name)[["Usage"]].sum().reset_index()
+    code_counts[column_name] = code_counts[column_name].astype(str)
+    st.title("Total recorded codes")
+    st.write(code_counts)
+
+    time_series_data = merged_data.groupby("year_start")["Usage"].sum().reset_index()
+
+    st.title("Time Series for Uploaded Code List")
+    st.pyplot(plot_time_series(time_series_data))
+
+    individual_counts = (
+        merged_data.groupby(["year_start", column_name])["Usage"].sum().reset_index()
+    )
+    for code in code_list[column_name].unique():
+        # write title
+        st.title(f"Time Series for Code: {code}")
+        if code not in missing_codes:
+            code_data = individual_counts[individual_counts[column_name] == code]
+            st.pyplot(plot_time_series(code_data))
+
+        else:
+            st.error(f"The code {code} was not found.")
+
+
 if uploaded_file is not None:
     code_list = pd.read_csv(uploaded_file)
 
@@ -101,56 +159,77 @@ if uploaded_file is not None:
     data = data.rename(columns={"SNOMED_Concept_ID": column_name})
 
     if st.sidebar.button("Analyse Code List"):
-        # Convert the 'SNOMED_Concept_ID' column to int, assuming it's the correct data type
-        code_list[column_name] = code_list[column_name].astype(str)
+        show_plots(code_list, data, column_name)
 
-        data_subset = data[data[column_name].isin(code_list[column_name])]
-        # Find which codes in the uploaded file are not in the main dataset
-        missing_codes = code_list[~code_list[column_name].isin(data[column_name])][
-            column_name
-        ].unique()
 
-        if len(missing_codes) > 0:
-            st.title("Missing Codes")
-            # Display the missing codes
-            st.error("Some codes from the uploaded list were not found.")
-            # show the missing codes in a dataframe
-            st.write(pd.DataFrame(missing_codes, columns=["Missing Codes"], dtype=str))
+@st.cache_data(show_spinner=False)
+def get_codes_from_url(url):
+    try:
+        print(f"Fetching data from {url}")
+        page = requests.get(url)
 
-        # If there are no missing codes, proceed with the merge and rest of the analysis
-        merged_data = pd.merge(data_subset, code_list, on=column_name)
+        soup = BeautifulSoup(page.content, "html.parser")
+        print(soup)
 
-        # convert usage to float
-        # replace any '*" in usage column with np.nan
-        merged_data["Usage"] = merged_data["Usage"].replace("*", np.nan)
-
-        # convert non-null values to int
-        merged_data["Usage"] = merged_data["Usage"].astype(float)
-
-        # aggregate count by code and display in table
-        code_counts = merged_data.groupby(column_name)[["Usage"]].sum().reset_index()
-        code_counts[column_name] = code_counts[column_name].astype(str)
-        st.title("Total recorded codes")
-        st.write(code_counts)
-
-        time_series_data = (
-            merged_data.groupby("year_start")["Usage"].sum().reset_index()
+        # there is a dl section on the page. in it there is a dt with the text "Coding system". Find it then find the siister dd element next to it. See if it is SNOMED-CT
+        coding_system_sec = soup.find(
+            "dt", string=lambda text: "Coding system" in (text or "")
         )
+        coding_system = coding_system_sec.find_next_sibling("dd").text
 
-        st.title("Time Series for Uploaded Code List")
-        st.pyplot(plot_time_series(time_series_data))
+        if coding_system != "SNOMED CT":
+            st.error(
+                "The coding system for this codelist is not SNOMED-CT. Please check the URL and try again."
+            )
+            return []
 
-        individual_counts = (
-            merged_data.groupby(["year_start", column_name])["Usage"]
-            .sum()
-            .reset_index()
+        download_link = soup.find(
+            "a", string=lambda text: "Download CSV" in (text or "")
+        )["href"]
+
+        download_link = f"https://www.opencodelists.org{download_link}"
+
+        r = requests.get(download_link)
+
+        codes_df = pd.read_csv(io.StringIO(r.content.decode("utf-8")))
+
+        # return the codes
+        return codes_df
+
+    except Exception as e:
+        st.error(
+            "Failed to retrieve data from the URL. Please check the URL and try again."
         )
-        for code in code_list[column_name].unique():
-            # write title
-            st.title(f"Time Series for Code: {code}")
-            if code not in missing_codes:
-                code_data = individual_counts[individual_counts[column_name] == code]
-                st.pyplot(plot_time_series(code_data))
+        return []
 
-            else:
-                st.error(f"The code {code} was not found.")
+
+st.sidebar.title("Fetch Codes from OpenCodelists")
+url_input = st.sidebar.text_input("Enter a URL")
+st.sidebar.write(
+    "Enter a URL from https://www.opencodelists.org/ and the codes will be fetched. e.g. https://www.opencodelists.org/codelist/nhsd-primary-care-domain-refsets/cpeptide_cod/20200812"
+)
+
+
+if url_input:
+    codes_df = get_codes_from_url(url_input)
+  
+
+    # Once the file is uploaded, show a select box with column names
+    column_name = st.sidebar.selectbox(
+        "Select the column containing the codes",
+        codes_df.columns,
+        key="column_selector",
+    )
+
+    if st.sidebar.button("Analyse Code List"):
+        codes = codes_df[column_name].unique().tolist()
+        if codes:
+            code_list = pd.DataFrame(codes, columns=["SNOMED_Concept_ID"])
+            code_list["SNOMED_Concept_ID"] = code_list["SNOMED_Concept_ID"].astype(str)
+
+            data["SNOMED_Concept_ID"] = data["SNOMED_Concept_ID"].astype(str)
+
+            data["Usage"] = data["Usage"].replace("*", np.nan)
+            data["Usage"] = data["Usage"].astype(float)
+
+            show_plots(code_list, data, "SNOMED_Concept_ID")

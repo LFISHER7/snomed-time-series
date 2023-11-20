@@ -75,7 +75,6 @@ if code_input:
         formatted_data.columns = ["Year", "Usage"]
         formatted_data.loc[:, "Year"] = formatted_data["Year"].dt.strftime("%Y-%m-%d")
         formatted_data = formatted_data.set_index("Year")
-        st.write(formatted_data)
 
         st.write("Time Series Graph")
         st.pyplot(plot_time_series(filtered_data))

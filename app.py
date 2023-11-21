@@ -1,5 +1,4 @@
 import pathlib
-import pyautogui
 import streamlit as st
 import pandas as pd
 import numpy as np
@@ -19,7 +18,8 @@ DATA_PATH = path / "data/processed/combined_data.csv"
 def handle_code_input(data):
     st.sidebar.title("Code Input")
     st.sidebar.write("Enter a SNOMED-CT code to see the counts for that code.")
-    code_input = st.sidebar.text_input("Enter a code")
+
+    code_input = st.sidebar.text_input("Enter a code", key="code_input")
 
     if code_input:
         filtered_data = data[data["SNOMED_Concept_ID"] == code_input]
@@ -56,7 +56,9 @@ def display_code_data(filtered_data, code_input):
 def handle_file_upload(data):
     st.sidebar.title("Upload a Code List")
     st.sidebar.write('Upload a CSV file with a column named "SNOMED_Concept_ID"')
-    uploaded_file = st.sidebar.file_uploader("Choose a CSV file", type="csv")
+    uploaded_file = st.sidebar.file_uploader(
+        "Choose a CSV file", type="csv", key="uploaded_file"
+    )
 
     if uploaded_file is not None:
         code_list = pd.read_csv(uploaded_file)
@@ -71,7 +73,7 @@ def handle_file_upload(data):
 
 def handle_url_input(data):
     st.sidebar.title("Fetch Codes from OpenCodelists")
-    url_input = st.sidebar.text_input("Enter a URL")
+    url_input = st.sidebar.text_input("Enter a URL", key="url_input")
     st.sidebar.write(
         "Enter a URL from https://www.opencodelists.org/ and the codes will be fetched. e.g. https://www.opencodelists.org/codelist/nhsd-primary-care-domain-refsets/cpeptide_cod/20200812"
     )
@@ -99,7 +101,9 @@ def handle_url_input(data):
 
 def main():
     if st.sidebar.button("Reset"):
-        pyautogui.hotkey("ctrl", "F5")
+        st.session_state["code_input"] = ""
+        st.session_state["url_input"] = ""
+        st.rerun()
 
     st.title("SNOMED-CT Explorer")
 

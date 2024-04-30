@@ -8,7 +8,7 @@ from src.utils import (
     plot_time_series,
     get_codes_from_url,
     show_plots,
-    select_column,
+    select_columns,
 )
 
 path = pathlib.Path(__file__).parent.absolute()
@@ -67,12 +67,22 @@ def handle_file_upload(data):
     if uploaded_file is not None:
         code_list = pd.read_csv(uploaded_file)
 
-        column_name = select_column(code_list, "select_column_file_upload")
+        columns = {
+            "column": "file_upload_code_column",
+            "description": "file_upload_description_column",
+        }
 
-        data = data.rename(columns={"SNOMED_Concept_ID": column_name})
+        column_names = select_columns(code_list, columns)
+
+        data = data.rename(columns={"SNOMED_Concept_ID": column_names["column_name"]})
 
         if st.sidebar.button("Analyse Code List"):
-            show_plots(code_list, data, column_name)
+            show_plots(
+                code_list,
+                column_names["description_column_name"],
+                data,
+                column_names["column_name"],
+            )
 
 
 def handle_url_input(data):

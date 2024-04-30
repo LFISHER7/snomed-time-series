@@ -17,29 +17,33 @@ DATA_PATH = path / "data/processed/combined_data.csv"
 
 def handle_code_input(data):
     st.sidebar.title("Code Input")
-    st.sidebar.write("Enter a SNOMED-CT code to see the counts for that code.")
+    st.sidebar.write("Enter a SNOMED CT code to see the counts for that code.")
 
     code_input = st.sidebar.text_input("Enter a code", key="code_input")
 
     if code_input:
         filtered_data = data[data["SNOMED_Concept_ID"] == code_input]
-
         if not filtered_data.empty:
+            code_description = filtered_data["Description"].values[0]
+
             st.title(f"Counts for Code: {code_input}")
-            # dislpay the data, year start should be in the format YYYY-MM-DD
+            st.write(f"Code Description: {code_description}")
+     
+            filtered_data["year_start"] = pd.to_datetime(
+                filtered_data["year_start"]
+            ).dt.date
+
             formatted_data = filtered_data[["year_start", "Usage"]]
             formatted_data.columns = ["Year", "Usage"]
-            formatted_data.loc[:, "Year"] = formatted_data["Year"].dt.strftime(
-                "%Y-%m-%d"
-            )
+            formatted_data["Year"] = formatted_data["Year"].astype(str)
             formatted_data = formatted_data.set_index("Year")
-
-            st.write("Time Series Graph")
+            st.write(formatted_data)
+            st.title(f"Time Series for Code: {code_input}")
             st.pyplot(plot_time_series(filtered_data))
 
         else:
             st.error(
-                f"The code {code_input} was not found. Please ensure the code entered is a SNOMED-CT code."
+                f"The code {code_input} was not found. Please ensure the code entered is a SNOMED CT code."
             )
 
 

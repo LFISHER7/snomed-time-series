@@ -196,7 +196,7 @@ def show_plots(code_list, description_column_name, data, column_name):
     st.write(code_counts)
 
     time_series_data = merged_data.groupby("year_start")["Usage"].sum().reset_index()
-    st.title("Time Series for Uploaded Code List")
+    st.title("Time Series for Code List")
     st.pyplot(plot_time_series(time_series_data))
 
     individual_counts = (

@@ -201,20 +201,24 @@ def show_plots(code_list, description_column_name, data, column_name):
         merged_data.groupby(["year_start", column_name])["Usage"].sum().reset_index()
     )
 
-    for code in code_list[column_name].unique():
+    # get list of codes in individual counts, orderd from highest usage to lowest
+    individual_counts_total = individual_counts.groupby(column_name)["Usage"].sum().reset_index()
+    individual_counts_total = individual_counts_total.sort_values("Usage", ascending=False)
+    ordered_codes = individual_counts_total[column_name].tolist()
+    
+
+
+    for code in ordered_codes:
         st.title(f"Time Series for Code: {code}")
 
-        if code not in missing_codes:
+        code_data = individual_counts[individual_counts[column_name] == code]
+        code_description = merged_data[merged_data[column_name] == code][
+            "Description"
+        ].values[0]
+        st.write(f"Description: {code_description}")
+        st.pyplot(plot_time_series(code_data))
 
-            code_data = individual_counts[individual_counts[column_name] == code]
-            code_description = merged_data[merged_data[column_name] == code][
-                "Description"
-            ].values[0]
-            st.write(f"Description: {code_description}")
-            st.pyplot(plot_time_series(code_data))
-
-        else:
-            st.error(f"The code {code} was not found.")
+    
 
 
 def select_columns(data, key_names):

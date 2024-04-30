@@ -191,6 +191,8 @@ def show_plots(code_list, description_column_name, data, column_name):
     )
 
     st.title("Total recorded codes")
+
+    code_counts = code_counts.sort_values("Usage", ascending=False).reset_index(drop=True)
     st.write(code_counts)
 
     time_series_data = merged_data.groupby("year_start")["Usage"].sum().reset_index()
@@ -204,10 +206,12 @@ def show_plots(code_list, description_column_name, data, column_name):
     # get list of codes in individual counts, orderd from highest usage to lowest
     individual_counts_total = individual_counts.groupby(column_name)["Usage"].sum().reset_index()
     individual_counts_total = individual_counts_total.sort_values("Usage", ascending=False)
+
+    # remove any codes that have no usage
+    individual_counts_total = individual_counts_total[individual_counts_total["Usage"] > 0]
+
     ordered_codes = individual_counts_total[column_name].tolist()
     
-
-
     for code in ordered_codes:
         st.title(f"Time Series for Code: {code}")
 
@@ -217,9 +221,7 @@ def show_plots(code_list, description_column_name, data, column_name):
         ].values[0]
         st.write(f"Description: {code_description}")
         st.pyplot(plot_time_series(code_data))
-
     
-
 
 def select_columns(data, key_names):
     """

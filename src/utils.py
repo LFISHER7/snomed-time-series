@@ -35,7 +35,9 @@ def plot_time_series(data):
         Matplotlib figure: The generated time series plot.
     """
     data_copy = data.copy()
-    data_copy["year_start"] = data["year_start"] - pd.DateOffset(months=6)
+    data_copy["year_start"] = pd.to_datetime(data_copy["year_start"]) - pd.DateOffset(
+        months=6
+    )
     xlabels = data_copy["year_start"].dt.strftime("%Y").unique().tolist()
     plt.figure(figsize=(10, 5))
     plt.bar(
@@ -103,7 +105,7 @@ def get_codes_from_url(url):
         return pd.DataFrame()
 
 
-def show_plots(code_list, data, column_name):
+def show_plots(code_list, description_column_name, data, column_name):
     """
     For the given code list and data, displays the following:
     - Codes from the uploaded list that were not found in the data
@@ -113,11 +115,18 @@ def show_plots(code_list, data, column_name):
 
     Args:
         code_list (DataFrame): DataFrame containing the list of codes.
+        description_column_name (str): The name of the column containing the code descriptions within code_list.
         data (DataFrame): The main dataset to compare against.
         column_name (str): The name of the column containing the codes.
     """
     code_list[column_name] = code_list[column_name].astype(str)
+    if description_column_name:
+        code_list[description_column_name] = code_list[description_column_name].astype(
+            str
+        )
+
     data_subset = data[data[column_name].isin(code_list[column_name])]
+
     missing_codes = code_list[~code_list[column_name].isin(data[column_name])][
         column_name
     ].unique()
@@ -125,13 +134,62 @@ def show_plots(code_list, data, column_name):
     if len(missing_codes) > 0:
         st.title("Missing Codes")
         st.error("Some codes from the uploaded list were not found.")
-        st.write(pd.DataFrame(missing_codes, columns=["Missing Codes"], dtype=str))
+
+        if description_column_name:
+            missing_codes_description = code_list[
+                code_list[column_name].isin(missing_codes)
+            ][[column_name, description_column_name]]
+
+            missing_codes_description = missing_codes_description.rename(
+                columns={column_name: "SNOMED CT Code"}
+            )
+            missing_codes_description = missing_codes_description.rename(
+                columns={description_column_name: "Description"}
+            )
+            st.write(missing_codes_description)
+        else:
+            missing_codes_description = code_list[
+                code_list[column_name].isin(missing_codes)
+            ][[column_name]]
+            missing_codes_description = missing_codes_description.rename(
+                columns={column_name: "SNOMED CT Code"}
+            )
+            st.write(missing_codes_description)
+
+    if description_column_name:
+        code_list = code_list.rename(
+            columns={description_column_name: "description_temp"}
+        )
+
+    if "Description" in code_list.columns:
+        code_list = code_list.drop(columns=["Description"])
 
     merged_data = pd.merge(data_subset, code_list, on=column_name)
+
     merged_data["Usage"] = merged_data["Usage"].replace("*", np.nan).astype(float)
 
     code_counts = merged_data.groupby(column_name)[["Usage"]].sum().reset_index()
     code_counts[column_name] = code_counts[column_name].astype(str)
+
+    code_counts["Description"] = code_counts[column_name].apply(
+        lambda x: merged_data[merged_data[column_name] == x]["Description"].values[0]
+    )
+
+    if description_column_name:
+
+        code_counts = code_counts.merge(
+            code_list[[column_name, "description_temp"]], on=column_name, how="left"
+        )
+        code_counts = code_counts.rename(columns={column_name: "SNOMED CT Code"})
+        code_counts = code_counts[["SNOMED CT Code", "Description", "Usage"]]
+
+    else:
+        code_counts = code_counts.rename(columns={column_name: "SNOMED CT Code"})
+
+    merged_data["Description"] = merged_data[column_name].apply(
+        lambda x: merged_data[merged_data[column_name] == x]["Description"].values[0]
+    )
+
     st.title("Total recorded codes")
     st.write(code_counts)
 
@@ -142,28 +200,57 @@ def show_plots(code_list, data, column_name):
     individual_counts = (
         merged_data.groupby(["year_start", column_name])["Usage"].sum().reset_index()
     )
+
     for code in code_list[column_name].unique():
         st.title(f"Time Series for Code: {code}")
+
         if code not in missing_codes:
+
             code_data = individual_counts[individual_counts[column_name] == code]
+            code_description = merged_data[merged_data[column_name] == code][
+                "Description"
+            ].values[0]
+            st.write(f"Description: {code_description}")
             st.pyplot(plot_time_series(code_data))
 
         else:
             st.error(f"The code {code} was not found.")
 
 
-def select_column(data, key_name):
+def select_columns(data, key_names):
     """
-    Allow the user to select a column from the data.
+    Allow the user to select columns from the data.
 
     Args:
         data (DataFrame): DataFrame containing the data.
-        key_name (str): The key to use for the selectbox.
+        key_names (dict): A dictionary with keys for the selectboxes. Should contain 'column' and 'description' keys.
 
     Returns:
-        str: The name of the selected column.
+        dict: A dictionary with the names of the selected columns.
     """
     column_name = st.sidebar.selectbox(
-        "Select the column containing the codes", data.columns, key=key_name
+        "Select the column containing the codes",
+        data.columns,
+        key=key_names["column"],
+        index=0,
     )
-    return column_name
+
+    if len(data.columns) > 1:
+        options = ["None"] + list(data.columns)
+        description_column_name = st.sidebar.selectbox(
+            "Select the column containing code descriptions (optional)",
+            options,
+            key=key_names["description"],
+            index=0,
+        )
+
+        if description_column_name == "None":
+            description_column_name = None
+
+    else:
+        description_column_name = None
+
+    return {
+        "column_name": column_name,
+        "description_column_name": description_column_name,
+    }

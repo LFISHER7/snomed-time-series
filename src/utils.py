@@ -35,13 +35,11 @@ def plot_time_series(data):
         Matplotlib figure: The generated time series plot.
     """
     data_copy = data.copy()
-    data_copy["year_start"] = pd.to_datetime(data_copy["year_start"]) - pd.DateOffset(
-        months=6
-    )
-    xlabels = data_copy["year_start"].dt.strftime("%Y").unique().tolist()
+
+    xlabels = data_copy["Year"].dt.strftime("%Y").unique().tolist()
     plt.figure(figsize=(10, 5))
     plt.bar(
-        data_copy["year_start"],
+        data_copy["Year"],
         data_copy["Usage"],
         width=365,
         color="blue",
@@ -105,7 +103,19 @@ def get_codes_from_url(url):
         return pd.DataFrame()
 
 
-def show_plots(code_list, description_column_name, data, column_name):
+@st.experimental_fragment
+def show_download_button(csv, filename, key):
+
+    st.download_button(
+        label="Download data as CSV",
+        data=csv,
+        file_name=filename,
+        mime="text/csv",
+        key=key,
+    )
+
+
+def show_plots(code_list, description_column_name, data_subset, column_name):
     """
     For the given code list and data, displays the following:
     - Codes from the uploaded list that were not found in the data
@@ -119,15 +129,8 @@ def show_plots(code_list, description_column_name, data, column_name):
         data (DataFrame): The main dataset to compare against.
         column_name (str): The name of the column containing the codes.
     """
-    code_list[column_name] = code_list[column_name].astype(str)
-    if description_column_name:
-        code_list[description_column_name] = code_list[description_column_name].astype(
-            str
-        )
 
-    data_subset = data[data[column_name].isin(code_list[column_name])]
-
-    missing_codes = code_list[~code_list[column_name].isin(data[column_name])][
+    missing_codes = code_list[~code_list[column_name].isin(data_subset[column_name])][
         column_name
     ].unique()
 
@@ -192,26 +195,54 @@ def show_plots(code_list, description_column_name, data, column_name):
 
     st.title("Total recorded codes")
 
-    code_counts = code_counts.sort_values("Usage", ascending=False).reset_index(drop=True)
+    code_counts = code_counts.sort_values("Usage", ascending=False).reset_index(
+        drop=True
+    )
     st.write(code_counts)
+
+    show_download_button(
+        code_counts.to_csv(index=False).encode("utf-8"),
+        "snomed_code_usage_total.csv",
+        "download_csv_total",
+    )
 
     time_series_data = merged_data.groupby("year_start")["Usage"].sum().reset_index()
     st.title("Time Series for Code List")
+    time_series_data["year_start"] = pd.to_datetime(
+        time_series_data["year_start"]
+    ).dt.date
+
+    time_series_data["Year"] = pd.to_datetime(
+        time_series_data["year_start"]
+    ) - pd.DateOffset(months=6)
     st.pyplot(plot_time_series(time_series_data))
+
+    csv_time_series = (
+        time_series_data.loc[:, ["Year", "Usage"]].to_csv(index=False).encode("utf-8")
+    )
+    show_download_button(
+        csv_time_series, "snomed_code_usage_time_series.csv", "download_csv_time_series"
+    )
 
     individual_counts = (
         merged_data.groupby(["year_start", column_name])["Usage"].sum().reset_index()
     )
 
     # get list of codes in individual counts, orderd from highest usage to lowest
-    individual_counts_total = individual_counts.groupby(column_name)["Usage"].sum().reset_index()
-    individual_counts_total = individual_counts_total.sort_values("Usage", ascending=False)
+    individual_counts_total = (
+        individual_counts.groupby(column_name)["Usage"].sum().reset_index()
+    )
+    individual_counts_total = individual_counts_total.sort_values(
+        "Usage", ascending=False
+    )
 
     # remove any codes that have no usage
-    individual_counts_total = individual_counts_total[individual_counts_total["Usage"] > 0]
+    individual_counts_total = individual_counts_total[
+        individual_counts_total["Usage"] > 0
+    ]
 
     ordered_codes = individual_counts_total[column_name].tolist()
-    
+
     for code in ordered_codes:
         st.title(f"Time Series for Code: {code}")
 
@@ -220,8 +251,19 @@ def show_plots(code_list, description_column_name, data, column_name):
             "Description"
         ].values[0]
         st.write(f"Description: {code_description}")
+
+        code_data["year_start"] = pd.to_datetime(code_data["year_start"]).dt.date
+
+        code_data["Year"] = pd.to_datetime(code_data["year_start"]) - pd.DateOffset(
+            months=6
+        )
         st.pyplot(plot_time_series(code_data))
-    
+        show_download_button(
+            code_data.loc[:, ["Year", "Usage"]].to_csv(index=False).encode("utf-8"),
+            f"snomed_code_usage_{code}.csv",
+            f"download_csv_{code}",
+        )
+
 
 def select_columns(data, key_names):
     """

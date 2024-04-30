@@ -9,6 +9,7 @@ from src.utils import (
     get_codes_from_url,
     show_plots,
     select_columns,
+    show_download_button,
 )
 
 path = pathlib.Path(__file__).parent.absolute()
@@ -28,33 +29,27 @@ def handle_code_input(data):
 
             st.title(f"Counts for Code: {code_input}")
             st.write(f"Code Description: {code_description}")
-     
+
             filtered_data["year_start"] = pd.to_datetime(
                 filtered_data["year_start"]
             ).dt.date
 
-            filtered_data["Year"] = pd.to_datetime(filtered_data["year_start"]) - pd.DateOffset(
-                months=6
-            )
+            filtered_data["Year"] = pd.to_datetime(
+                filtered_data["year_start"]
+            ) - pd.DateOffset(months=6)
 
-            filtered_data = filtered_data.loc[:,["Year", "Usage"]]
+            filtered_data = filtered_data.loc[:, ["Year", "Usage"]]
 
             formatted_data = filtered_data.copy()
             formatted_data["Year"] = formatted_data["Year"].astype(str)
-            
+
             formatted_data = formatted_data.set_index("Year")
-            
+
             st.write(formatted_data)
             st.title(f"Time Series for Code: {code_input}")
             st.pyplot(plot_time_series(filtered_data))
 
-            csv = formatted_data.to_csv().encode('utf-8')
-            st.download_button(
-                label="Download data as CSV",
-                data=csv,
-                file_name=f"snomed_code_usage_{code_input}.csv",
-                mime='text/csv',
-            )
+            show_download_button(formatted_data.reset_index().to_csv(index=False).encode('utf-8'), f"snomed_code_usage_{code_input}.csv", f"download_csv_{code_input}")
 
         else:
             st.error(
@@ -92,10 +87,25 @@ def handle_file_upload(data):
         data = data.rename(columns={"SNOMED_Concept_ID": column_names["column_name"]})
 
         if st.sidebar.button("Analyse Code List"):
+
+            code_list[column_names["column_name"]] = code_list[
+                column_names["column_name"]
+            ].astype(str)
+            if column_names["description_column_name"]:
+                code_list[column_names["description_column_name"]] = code_list[
+                    column_names["description_column_name"]
+                ].astype(str)
+
+            data_subset = data[
+                data[column_names["column_name"]].isin(
+                    code_list[column_names["column_name"]]
+                )
+            ]
+
             show_plots(
                 code_list,
                 column_names["description_column_name"],
-                data,
+                data_subset,
                 column_names["column_name"],
             )
 
@@ -140,8 +150,26 @@ def handle_url_input(data):
                 data["Usage"] = data["Usage"].replace("*", np.nan)
                 data["Usage"] = data["Usage"].astype(float)
 
+                if description_column_name:
+                    code_list[description_column_name] = code_list[
+                        description_column_name
+                    ].astype(str)
+
+                data_subset = data[
+                    data["SNOMED_Concept_ID"].isin(code_list["SNOMED_Concept_ID"])
+                ]
+
+                csv = data_subset.to_csv(index=False).encode("utf-8")
+                st.download_button(
+                    label="Download data as CSV",
+                    data=csv,
+                    file_name=f"snomed_code_usage.csv",
+                    mime="text/csv",
+                    key=f"download_csv_url",
+                )
+
                 show_plots(
-                    code_list, description_column_name, data, "SNOMED_Concept_ID"
+                    code_list, description_column_name, data_subset, "SNOMED_Concept_ID"
                 )
 
 

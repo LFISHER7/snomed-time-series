@@ -33,13 +33,28 @@ def handle_code_input(data):
                 filtered_data["year_start"]
             ).dt.date
 
-            formatted_data = filtered_data[["year_start", "Usage"]]
-            formatted_data.columns = ["Year", "Usage"]
+            filtered_data["Year"] = pd.to_datetime(filtered_data["year_start"]) - pd.DateOffset(
+                months=6
+            )
+
+            filtered_data = filtered_data.loc[:,["Year", "Usage"]]
+
+            formatted_data = filtered_data.copy()
             formatted_data["Year"] = formatted_data["Year"].astype(str)
+            
             formatted_data = formatted_data.set_index("Year")
+            
             st.write(formatted_data)
             st.title(f"Time Series for Code: {code_input}")
             st.pyplot(plot_time_series(filtered_data))
+
+            csv = formatted_data.to_csv().encode('utf-8')
+            st.download_button(
+                label="Download data as CSV",
+                data=csv,
+                file_name=f"snomed_code_usage_{code_input}.csv",
+                mime='text/csv',
+            )
 
         else:
             st.error(

@@ -35,13 +35,11 @@ def plot_time_series(data):
         Matplotlib figure: The generated time series plot.
     """
     data_copy = data.copy()
-    data_copy["year_start"] = pd.to_datetime(data_copy["year_start"]) - pd.DateOffset(
-        months=6
-    )
-    xlabels = data_copy["year_start"].dt.strftime("%Y").unique().tolist()
+    
+    xlabels = data_copy["Year"].dt.strftime("%Y").unique().tolist()
     plt.figure(figsize=(10, 5))
     plt.bar(
-        data_copy["year_start"],
+        data_copy["Year"],
         data_copy["Usage"],
         width=365,
         color="blue",

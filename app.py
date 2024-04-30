@@ -95,12 +95,27 @@ def handle_url_input(data):
     if url_input:
         codes_df = get_codes_from_url(url_input)
 
-        column_name = select_column(codes_df, "select_column_url")
+        columns = {"column": "url_code_column", "description": "url_description_column"}
+
+        column_names = select_columns(codes_df, columns)
+        column_name = column_names["column_name"]
+        description_column_name = column_names["description_column_name"]
 
         if st.sidebar.button("Analyse Code List from URL"):
             codes = codes_df[column_name].unique().tolist()
+
             if codes:
-                code_list = pd.DataFrame(codes, columns=["SNOMED_Concept_ID"])
+                code_list = pd.DataFrame(codes, columns=[column_name])
+
+                if description_column_name:
+                    code_list = code_list.merge(
+                        codes_df[[column_name, description_column_name]],
+                        on=column_name,
+                        how="left",
+                    )
+
+                code_list = code_list.rename(columns={column_name: "SNOMED_Concept_ID"})
+
                 code_list["SNOMED_Concept_ID"] = code_list["SNOMED_Concept_ID"].astype(
                     str
                 )
@@ -110,7 +125,9 @@ def handle_url_input(data):
                 data["Usage"] = data["Usage"].replace("*", np.nan)
                 data["Usage"] = data["Usage"].astype(float)
 
-                show_plots(code_list, data, "SNOMED_Concept_ID")
+                show_plots(
+                    code_list, description_column_name, data, "SNOMED_Concept_ID"
+                )
 
 
 def main():

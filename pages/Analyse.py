@@ -12,7 +12,7 @@ from src.utils import (
     show_download_button,
 )
 
-path = pathlib.Path(__file__).parent.absolute()
+path = pathlib.Path(__file__).resolve().parents[1]
 DATA_PATH = path / "data/processed/combined_data.csv"
 
 
@@ -46,7 +46,6 @@ def handle_code_input(data):
             formatted_data = formatted_data.set_index("Year")
 
             st.write(formatted_data)
-            st.title(f"Time Series for Code: {code_input}")
             st.pyplot(plot_time_series(filtered_data))
 
             show_download_button(formatted_data.reset_index().to_csv(index=False).encode('utf-8'), f"snomed_code_usage_{code_input}.csv", f"download_csv_{code_input}")
@@ -174,12 +173,33 @@ def handle_url_input(data):
 
 
 def main():
+
+    st.set_page_config(
+    page_title="Analyse",
+    page_icon="📈",
+)
+
     if st.sidebar.button("Reset"):
         st.session_state["code_input"] = ""
         st.session_state["url_input"] = ""
         st.rerun()
 
-    st.title("SNOMED-CT Explorer")
+    st.title("Analyse")
+
+    with st.expander(expanded=True, label="How to use"):
+        
+        st.markdown(
+            """
+            Use one of the 3 options in the sidebar for exploring this data:
+
+            1. **Entering a single code** - Explore usage over time for a single code.
+            2. **Uploading a codelist** - Explore usage over time for a list of codes in a local [codelist](https://www.bennett.ox.ac.uk/blog/2023/09/what-are-codelists-and-how-are-they-constructed/).
+            3. **Finding a codelist on OpenCodelists** - Explore usage over time for a list of codes on [OpenCodelists](https://opencodelists.org/).
+            
+            """
+        )
+    
+    
 
     data = load_data(DATA_PATH)
     data["SNOMED_Concept_ID"] = data["SNOMED_Concept_ID"].astype(str)

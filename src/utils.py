@@ -36,6 +36,24 @@ def plot_time_series(data):
     """
     data_copy = data.copy()
 
+    # set the scale. If max usage is >10000, convert usage to 1000. 
+
+    ylabels_dict = {
+        "default": "Usage",
+        "thousands": "Usage (thousands)",
+        "millions": "Usage (millions)"
+    }
+
+    if data_copy["Usage"].max() > 1000 and data_copy["Usage"].max() < 10000:
+        data_copy["Usage"] = data_copy["Usage"]/1000
+        ylabel = ylabels_dict["thousands"]
+    
+    elif data_copy["Usage"].max() > 10000:
+        data_copy["Usage"] = data_copy["Usage"]/1000000
+        ylabel = ylabels_dict["millions"]
+    else:
+        ylabel = ylabels_dict["default"]
+
     xlabels = data_copy["Year"].dt.strftime("%Y").unique().tolist()
     plt.figure(figsize=(10, 5))
     plt.bar(
@@ -50,7 +68,7 @@ def plot_time_series(data):
     plt.gca().xaxis.set_major_locator(mdates.YearLocator())
     plt.gca().xaxis.set_major_formatter(mdates.DateFormatter("%Y"))
     plt.xlabel("Date", fontsize=14)
-    plt.ylabel("Usage", fontsize=14)
+    plt.ylabel(ylabel, fontsize=14)
     plt.grid(True, which="both", linestyle="--", linewidth=0.5)
     plt.xticks(xlabels, fontsize=12, rotation=45)
     plt.yticks(fontsize=12)

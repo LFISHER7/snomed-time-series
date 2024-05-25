@@ -7,7 +7,7 @@ import matplotlib.dates as mdates
 import streamlit as st
 from bs4 import BeautifulSoup
 
-
+@st.cache_data
 def load_data(path):
     """
     Load and preprocess CSV from a given path.

@@ -320,3 +320,16 @@ def select_columns(data, key_names):
         "column_name": column_name,
         "description_column_name": description_column_name,
     }
+
+def format_number(number):
+    return "{:,}".format(int(number))
+
+def display_metric(label, value, help_text, string=False):
+    if pd.isnull(value):
+        value = 0
+
+    if string:
+        st.metric(label=label, value=value, help=help_text)
+    else:
+        st.metric(label=label, value=format_number(value), help=help_text)
+

@@ -3,24 +3,17 @@ import pathlib
 import pandas as pd
 import streamlit as st
 
-from src.utils import load_data
+from src.utils import load_data, display_metric
 
 path = pathlib.Path(__file__).resolve().parents[1]
 DATA_PATH = path / "data/processed/combined_data.csv"
 METADATA_PATH = path / "data/processed/metadata.csv"
 
 
-def format_number(number):
-    return "{:,}".format(int(number))
-
-
 def plot_bar_chart(data, x, y, title, help_text):
     st.markdown(f"##### {title}", help=help_text)
     st.bar_chart(data, x=x, y=y)
 
-
-def display_metric(label, value, help_text):
-    st.metric(label=label, value=format_number(value), help=help_text)
 
 @st.cache_data
 def dashboard(data):

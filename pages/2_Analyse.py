@@ -1,16 +1,13 @@
 import pathlib
-import streamlit as st
-import pandas as pd
-import numpy as np
 
-from src.utils import (
-    load_data,
-    plot_time_series,
-    get_codes_from_url,
-    show_plots,
-    select_columns,
-    show_download_button,
-)
+import numpy as np
+import pandas as pd
+import streamlit as st
+
+from src.utils import (display_metric, get_codes_from_url, load_data,
+                       plot_time_series, select_columns, show_download_button,
+                       show_plots)
+
 
 path = pathlib.Path(__file__).resolve().parents[1]
 DATA_PATH = path / "data/processed/combined_data.csv"
@@ -28,7 +25,6 @@ def handle_code_input(data):
             code_description = filtered_data["Description"].values[0]
 
             st.title(f"Counts for Code: {code_input}")
-            st.write(f"Code Description: {code_description}")
 
             filtered_data["year_start"] = pd.to_datetime(
                 filtered_data["year_start"]
@@ -38,17 +34,80 @@ def handle_code_input(data):
                 filtered_data["year_start"]
             ) - pd.DateOffset(months=6)
 
-            filtered_data = filtered_data.loc[:, ["Year", "Usage"]]
-
             formatted_data = filtered_data.copy()
+
+            summary_stats = {
+                "Total usage": filtered_data["Usage"].sum(),
+                "Usage in the latest year": filtered_data.loc[
+                    filtered_data["Year"].dt.year
+                    == filtered_data["Year"].dt.year.max(),
+                    "Usage",
+                ].iloc[0],
+                "Code active": filtered_data.loc[
+                    filtered_data["Year"].dt.year
+                    == filtered_data["Year"].dt.year.max(),
+                    "Active_at_End",
+                ].iloc[0]
+                == 1,
+                "New code": (
+                    "True"
+                    if (
+                        filtered_data.loc[
+                            filtered_data["Year"].dt.year
+                            == filtered_data["Year"].dt.year.max(),
+                            "Active_at_End",
+                        ].iloc[0]
+                        == 1
+                    )
+                    & (
+                        filtered_data.loc[
+                            filtered_data["Year"].dt.year
+                            == filtered_data["Year"].dt.year.max(),
+                            "Active_at_Start",
+                        ].iloc[0]
+                        == 0
+                    )
+                    else "False"
+                ),
+            }
+
+            c = st.container(border=True)
+            c.subheader(f"Code Description: {code_description}")
+            c1, c2 = c.columns(2)
+            with c1:
+                display_metric("Total usage", summary_stats["Total usage"], "")
+                display_metric(
+                    "Usage in the latest year",
+                    summary_stats["Usage in the latest year"],
+                    "",
+                )
+
+            with c2:
+                display_metric(
+                    "Code active",
+                    summary_stats["Code active"],
+                    "Code indicated as being active at the end of the latest period",
+                    string=True,
+                )
+                display_metric(
+                    "New code",
+                    summary_stats["New code"],
+                    "Code not active at the start of the latest period but active at the end",
+                    string=True,
+                )
+
             formatted_data["Year"] = formatted_data["Year"].astype(str)
 
             formatted_data = formatted_data.set_index("Year")
 
-            st.write(formatted_data)
+            # st.write(formatted_data)
             st.pyplot(plot_time_series(filtered_data))
 
-            show_download_button(formatted_data.reset_index().to_csv(index=False).encode('utf-8'), f"snomed_code_usage_{code_input}.csv", f"download_csv_{code_input}")
+            show_download_button(
+                formatted_data.reset_index().to_csv(index=False).encode("utf-8"),
+                f"snomed_code_usage_{code_input}.csv",
+                f"download_csv_{code_input}",
+            )
 
         else:
             st.error(
@@ -113,7 +172,10 @@ def handle_url_input(data):
     st.sidebar.title("Fetch Codes from OpenCodelists")
     url_input = st.sidebar.text_input("Enter a URL", key="url_input")
     st.sidebar.write(
-        "Enter a URL from https://www.opencodelists.org/ and the codes will be fetched. e.g. https://www.opencodelists.org/codelist/nhsd-primary-care-domain-refsets/cpeptide_cod/20200812"
+        """
+        Enter a URL from https://www.opencodelists.org/ and the codes will be fetched.
+        e.g. https://www.opencodelists.org/codelist/nhsd-primary-care-domain-refsets/cpeptide_cod/20200812
+        """
     )
 
     if url_input:
@@ -162,9 +224,9 @@ def handle_url_input(data):
                 st.download_button(
                     label="Download data as CSV",
                     data=csv,
-                    file_name=f"snomed_code_usage.csv",
+                    file_name="snomed_code_usage.csv",
                     mime="text/csv",
-                    key=f"download_csv_url",
+                    key="download_csv_url",
                 )
 
                 show_plots(
@@ -175,9 +237,9 @@ def handle_url_input(data):
 def main():
 
     st.set_page_config(
-    page_title="Analyse",
-    page_icon="📈",
-)
+        page_title="Analyse",
+        page_icon="📈",
+    )
 
     if st.sidebar.button("Reset"):
         st.session_state["code_input"] = ""
@@ -187,19 +249,17 @@ def main():
     st.title("Analyse")
 
     with st.expander(expanded=True, label="How to use"):
-        
+
         st.markdown(
             """
             Use one of the 3 options in the sidebar for exploring this data:
-
             1. **Entering a single code** - Explore usage over time for a single code.
-            2. **Uploading a codelist** - Explore usage over time for a list of codes in a local [codelist](https://www.bennett.ox.ac.uk/blog/2023/09/what-are-codelists-and-how-are-they-constructed/).
-            3. **Finding a codelist on OpenCodelists** - Explore usage over time for a list of codes on [OpenCodelists](https://opencodelists.org/).
-            
+            2. **Uploading a codelist** - Explore usage over time for a list of codes in a
+            local [codelist](https://www.bennett.ox.ac.uk/blog/2023/09/what-are-codelists-and-how-are-they-constructed/).
+            3. **Finding a codelist on OpenCodelists** - Explore usage over time for a 
+            list of codes on [OpenCodelists](https://opencodelists.org/).
             """
         )
-    
-    
 
     data = load_data(DATA_PATH)
     data["SNOMED_Concept_ID"] = data["SNOMED_Concept_ID"].astype(str)

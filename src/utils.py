@@ -1,11 +1,14 @@
-import requests
 import io
-import pandas as pd
-import numpy as np
-import matplotlib.pyplot as plt
+
 import matplotlib.dates as mdates
+import matplotlib.pyplot as plt
+import numpy as np
+import pandas as pd
+import requests
 import streamlit as st
 from bs4 import BeautifulSoup
+from matplotlib.ticker import FuncFormatter
+
 
 @st.cache_data
 def load_data(path):
@@ -24,6 +27,15 @@ def load_data(path):
     return df
 
 
+def custom_date_formatter(x, pos):
+    date = mdates.num2date(x)
+    start_month_year = date.strftime("%Y")
+    end_date = date.replace(year=date.year + 1)
+    end_month_year = end_date.strftime("%Y")
+    date_str = f"{start_month_year}-{end_month_year}"
+    return date_str
+
+
 def plot_time_series(data):
     """
     Generate a time series plot from the given data.
@@ -36,27 +48,26 @@ def plot_time_series(data):
     """
     data_copy = data.copy()
 
-    # set the scale. If max usage is >10000, convert usage to 1000. 
+    # set the scale. If max usage is >10000, convert usage to 1000.
 
     ylabels_dict = {
         "default": "Usage",
         "thousands": "Usage (thousands)",
-        "millions": "Usage (millions)"
+        "millions": "Usage (millions)",
     }
 
     if data_copy["Usage"].max() > 1000 and data_copy["Usage"].max() < 10000:
-        data_copy["Usage"] = data_copy["Usage"]/1000
+        data_copy["Usage"] = data_copy["Usage"] / 1000
         ylabel = ylabels_dict["thousands"]
-    
+
     elif data_copy["Usage"].max() > 10000:
-        data_copy["Usage"] = data_copy["Usage"]/1000000
+        data_copy["Usage"] = data_copy["Usage"] / 1000000
         ylabel = ylabels_dict["millions"]
     else:
         ylabel = ylabels_dict["default"]
 
-    xlabels = data_copy["Year"].dt.strftime("%Y").unique().tolist()
     plt.figure(figsize=(10, 5))
-    plt.bar(
+    bars = plt.bar(
         data_copy["Year"],
         data_copy["Usage"],
         width=365,
@@ -66,12 +77,15 @@ def plot_time_series(data):
         linewidth=0.5,
     )
     plt.gca().xaxis.set_major_locator(mdates.YearLocator())
-    plt.gca().xaxis.set_major_formatter(mdates.DateFormatter("%Y"))
+    plt.gca().xaxis.set_major_formatter(FuncFormatter(custom_date_formatter))
     plt.xlabel("Date", fontsize=14)
     plt.ylabel(ylabel, fontsize=14)
     plt.grid(True, which="both", linestyle="--", linewidth=0.5)
-    plt.xticks(xlabels, fontsize=12, rotation=45)
+    plt.xticks(
+        [bar.get_x() + bar.get_width() / 2 for bar in bars], fontsize=12, rotation=45
+    )
     plt.yticks(fontsize=12)
+    plt.margins(x=0)
     plt.gca().spines["top"].set_visible(False)
     plt.gca().spines["right"].set_visible(False)
     plt.ylim(bottom=0)
@@ -84,7 +98,8 @@ def get_codes_from_url(url):
     Fetch codes from an OpenCodelists URL.
 
     Args:
-        url (str): URL to fetch codes from. Must be in the form https://www.opencodelists.org/codelist/{org}/{codelist}/{version}
+        url (str): URL to fetch codes from. Must be in the form 
+        https://www.opencodelists.org/codelist/{org}/{codelist}/{version}
 
     Returns:
         DataFrame: DataFrame containing the codes, or an empty DataFrame if an error occurs.
@@ -101,7 +116,8 @@ def get_codes_from_url(url):
 
         if coding_system != "SNOMED CT":
             st.error(
-                "The coding system for this codelist is not SNOMED-CT. Please check the URL and try again."
+                """The coding system for this codelist is not SNOMED-CT.
+                Please check the URL and try again."""
             )
             return pd.DataFrame()
 
@@ -114,9 +130,9 @@ def get_codes_from_url(url):
         r.raise_for_status()
 
         return pd.read_csv(io.StringIO(r.content.decode("utf-8")))
-    except Exception as e:
+    except Exception:
         st.error(
-            f"Failed to retrieve data from the URL. Please check the URL and try again."
+            "Failed to retrieve data from the URL. Please check the URL and try again."
         )
         return pd.DataFrame()
 
@@ -143,7 +159,8 @@ def show_plots(code_list, description_column_name, data_subset, column_name):
 
     Args:
         code_list (DataFrame): DataFrame containing the list of codes.
-        description_column_name (str): The name of the column containing the code descriptions within code_list.
+        description_column_name (str): The name of the column containing the 
+        code descriptions within code_list.
         data (DataFrame): The main dataset to compare against.
         column_name (str): The name of the column containing the codes.
     """
@@ -230,9 +247,7 @@ def show_plots(code_list, description_column_name, data_subset, column_name):
         time_series_data["year_start"]
     ).dt.date
 
-    time_series_data["Year"] = pd.to_datetime(
-        time_series_data["year_start"]
-    ) - pd.DateOffset(months=6)
+    time_series_data["Year"] = pd.to_datetime(time_series_data["year_start"])
     st.pyplot(plot_time_series(time_series_data))
 
     csv_time_series = (
@@ -272,14 +287,12 @@ def show_plots(code_list, description_column_name, data_subset, column_name):
 
         code_data["year_start"] = pd.to_datetime(code_data["year_start"]).dt.date
 
-        code_data["Year"] = pd.to_datetime(code_data["year_start"]) - pd.DateOffset(
-            months=6
-        )
+        code_data["Year"] = pd.to_datetime(code_data["year_start"])
         st.pyplot(plot_time_series(code_data))
         show_download_button(
             code_data.loc[:, ["Year", "Usage"]].to_csv(index=False).encode("utf-8"),
             f"snomed_code_usage_{code}.csv",
-            f"download_csv_{code}",
+            f"download_csv_url_input_{code}",
         )
 
 
@@ -289,7 +302,8 @@ def select_columns(data, key_names):
 
     Args:
         data (DataFrame): DataFrame containing the data.
-        key_names (dict): A dictionary with keys for the selectboxes. Should contain 'column' and 'description' keys.
+        key_names (dict): A dictionary with keys for the selectboxes.
+        Should contain 'column' and 'description' keys.
 
     Returns:
         dict: A dictionary with the names of the selected columns.
@@ -321,8 +335,10 @@ def select_columns(data, key_names):
         "description_column_name": description_column_name,
     }
 
+
 def format_number(number):
     return "{:,}".format(int(number))
+
 
 def display_metric(label, value, help_text, string=False):
     if pd.isnull(value):
@@ -332,4 +348,3 @@ def display_metric(label, value, help_text, string=False):
         st.metric(label=label, value=value, help=help_text)
     else:
         st.metric(label=label, value=format_number(value), help=help_text)
-

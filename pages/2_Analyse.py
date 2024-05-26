@@ -4,10 +4,15 @@ import numpy as np
 import pandas as pd
 import streamlit as st
 
-from src.utils import (display_metric, get_codes_from_url, load_data,
-                       plot_time_series, select_columns, show_download_button,
-                       show_plots)
-
+from src.utils import (
+    display_metric,
+    get_codes_from_url,
+    load_data,
+    plot_time_series,
+    select_columns,
+    show_download_button,
+    show_plots,
+)
 
 path = pathlib.Path(__file__).resolve().parents[1]
 DATA_PATH = path / "data/processed/combined_data.csv"
@@ -26,13 +31,7 @@ def handle_code_input(data):
 
             st.title(f"Counts for Code: {code_input}")
 
-            filtered_data["year_start"] = pd.to_datetime(
-                filtered_data["year_start"]
-            ).dt.date
-
-            filtered_data["Year"] = pd.to_datetime(
-                filtered_data["year_start"]
-            ) - pd.DateOffset(months=6)
+            filtered_data["Year"] = pd.to_datetime(filtered_data["year_start"])
 
             formatted_data = filtered_data.copy()
 
@@ -100,13 +99,12 @@ def handle_code_input(data):
 
             formatted_data = formatted_data.set_index("Year")
 
-            # st.write(formatted_data)
             st.pyplot(plot_time_series(filtered_data))
 
             show_download_button(
                 formatted_data.reset_index().to_csv(index=False).encode("utf-8"),
                 f"snomed_code_usage_{code_input}.csv",
-                f"download_csv_{code_input}",
+                f"download_csv_code_input_{code_input}",
             )
 
         else:

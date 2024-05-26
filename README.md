@@ -52,4 +52,4 @@ This explorer has 3 options for exploring this data:
 
 To start the app, run the following command in the terminal:
 
-`streamlit run app.py`
+`streamlit run About.py`

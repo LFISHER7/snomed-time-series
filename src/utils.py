@@ -106,13 +106,14 @@ def get_codes_from_url(url):
     """
     try:
         response = requests.get(url)
-        response.raise_for_status()
-
-        soup = BeautifulSoup(response.content, "html.parser")
-        coding_system_sec = soup.find(
-            "dt", string=lambda text: "Coding system" in (text or "")
-        )
-        coding_system = coding_system_sec.find_next_sibling("dd").text
+        soup = BeautifulSoup(response.text, "html.parser")
+        
+        coding_system_dt = soup.find('h3', string='Coding system')
+        if coding_system_dt:
+            coding_system_dd = coding_system_dt.find_parent('dt').find_next_sibling('dd')
+            coding_system = coding_system_dd.text.strip() if coding_system_dd else None
+        else:
+            coding_system = None
 
         if coding_system != "SNOMED CT":
             st.error(
@@ -124,6 +125,7 @@ def get_codes_from_url(url):
         download_link = soup.find(
             "a", string=lambda text: "Download CSV" in (text or "")
         )["href"]
+        
         download_link = f"https://www.opencodelists.org{download_link}"
 
         r = requests.get(download_link)
